@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- OS に依存しない部分 (ホスト一覧、内蔵保管庫の暗号化、保管先の切り替え)。
+       Linux でもビルドとテストができるように net10.0 のままにしている。 -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>HowdyRdp.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="HowdyRdp.Core.Tests" />
+  </ItemGroup>
+
+</Project>
