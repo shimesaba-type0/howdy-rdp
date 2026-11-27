@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 画面 (WinForms)、RDP ActiveX、Windows Hello。Windows 専用。 -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- 10.0.19041.0 = Windows 10 2004 以降の API (KeyCredentialManager を含む) を使う -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>HowdyRdp.App</RootNamespace>
+    <AssemblyName>howdy-rdp</AssemblyName>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationVisualStyles>true</ApplicationVisualStyles>
+    <ApplicationDefaultFont>Yu Gothic UI, 9pt</ApplicationDefaultFont>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Linux でもコンパイルの確認だけはできるようにする (RDP 部分は除く) -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+  <!--
+    RDP ActiveX (mstscax.dll, 型ライブラリ MSTSCLib) の相互運用アセンブリを生成する。
+    COMReference は Visual Studio の MSBuild.exe でしか解決できないので、
+    GitHub Actions では dotnet build ではなく MSBuild.exe でビルドする。
+    Windows 以外では RDP 部分を外してビルドする (NO_RDP_COM)。
+  -->
+  <ItemGroup Condition="'$(OS)' == 'Windows_NT'">
+    <COMReference Include="MSTSCLib">
+      <WrapperTool>tlbimp</WrapperTool>
+      <VersionMinor>0</VersionMinor>
+      <VersionMajor>1</VersionMajor>
+      <Guid>8c11efa1-92c3-11d1-bc1e-00c04fa31489</Guid>
+      <Lcid>0</Lcid>
+      <Isolated>false</Isolated>
+      <EmbedInteropTypes>false</EmbedInteropTypes>
+    </COMReference>
+    <COMReference Include="AxMSTSCLib">
+      <WrapperTool>aximp</WrapperTool>
+      <VersionMinor>0</VersionMinor>
+      <VersionMajor>1</VersionMajor>
+      <Guid>8c11efa1-92c3-11d1-bc1e-00c04fa31489</Guid>
+      <Lcid>0</Lcid>
+      <Isolated>false</Isolated>
+    </COMReference>
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(OS)' != 'Windows_NT'">
+    <DefineConstants>$(DefineConstants);NO_RDP_COM</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HowdyRdp.Core\HowdyRdp.Core.csproj" />
+  </ItemGroup>
+
+</Project>

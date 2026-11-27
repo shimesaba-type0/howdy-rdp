@@ -1,0 +1,78 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# このワークフローはリポジトリを読むだけ。書き込み権限は与えない。
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Show tools
+        shell: pwsh
+        run: |
+          dotnet --info
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          & $vswhere -latest -prerelease -products * -format text | Select-String -Pattern 'displayName|installationVersion'
+
+      - name: Test (core)
+        run: dotnet test tests/HowdyRdp.Core.Tests/HowdyRdp.Core.Tests.csproj -c Release
+
+      # RDP ActiveX の相互運用 (COMReference) は dotnet build では作れないので、
+      # Visual Studio の MSBuild.exe で発行する。
+      - name: Find MSBuild
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $msbuild = & $vswhere -latest -prerelease -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\amd64\MSBuild.exe' | Select-Object -First 1
+          if (-not $msbuild) { throw "MSBuild.exe が見つかりません" }
+          & $msbuild -version
+          "MSBUILD_EXE=$msbuild" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Publish (win-x64, single exe)
+        shell: pwsh
+        run: |
+          & $env:MSBUILD_EXE src/HowdyRdp.App/HowdyRdp.App.csproj `
+            -restore -t:Publish -nologo -v:minimal `
+            -p:Configuration=Release `
+            -p:RuntimeIdentifier=win-x64 `
+            -p:SelfContained=true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -p:DebugType=none `
+            -p:PublishDir="$env:GITHUB_WORKSPACE\publish\"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem publish | Format-Table Name, Length
+
+      - name: Checksum
+        shell: pwsh
+        run: |
+          Get-FileHash publish\howdy-rdp.exe -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  howdy-rdp.exe" } | Out-File publish\SHA256SUMS.txt -Encoding ascii
+          Get-Content publish\SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: howdy-rdp-win-x64
+          path: publish/
+          if-no-files-found: error
+          retention-days: 14
